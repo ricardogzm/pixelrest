@@ -1,64 +1,40 @@
 # pixelrest
 
 OLED burn-in protection for **KDE Plasma on Wayland**, written in Rust.
-It is a rewrite of [esleghel/oled-saver](https://github.com/esleghel/oled-saver)
-that only targets Plasma/Wayland.
 
-When you're idle it covers the chosen monitors with a black overlay (or
-dims them) without powering them off, so windows stay where they are. It
+When you're idle, pixelrest covers your monitors with a black overlay (or
+dims them) instead of turning them off, so windows stay where they are. It
 waits while a video or music is playing.
 
-## Why a rewrite
-
-The Python version crashes when monitors turn off:
-
-```
-RuntimeError: wrapped C/C++ object of type QScreen has been deleted
-```
-
-When a DisplayPort monitor powers down, KWin removes its output and Qt
-deletes the `QScreen`. The app kept using it on the next blank and aborted.
-
-What's different here:
-
-| | Python version | This version |
-|---|---|---|
-| Monitor turns off / hotplug | crash | the overlay is dropped with the output and recreated if it comes back |
-| Idle detection | spawns `swayidle`, sends Unix signals back | `ext-idle-notify-v1` straight from KWin |
-| Blank window | Qt fullscreen window | `wlr-layer-shell` overlay layer, above panels, cursor hidden, keyboard grabbed |
-| Video players (Wayland idle-inhibit) | not seen | respected natively |
-| Brightness after dimming | always reset to 100% | restored to your value, also after a crash |
-| Waking from a manual dim | polls `QCursor` (doesn't work on Wayland) | input watcher from the compositor |
-| Single instance / control | PID file in `/tmp` + signals | D-Bus name + `pixelrest <command>` |
-| Autostart | XDG autostart | systemd user service, restarts on failure |
-| Runtime | Python + PyQt6, about 70 MB | one ~4.5 MB binary |
+It's a Plasma-only rewrite of
+[esleghel/oled-saver](https://github.com/esleghel/oled-saver); see
+[why a rewrite](docs/why-a-rewrite.md).
 
 ## Install
 
+You need KDE Plasma on Wayland and a Rust toolchain (`cargo`).
+
 ```sh
+git clone https://github.com/ricardogzm/pixelrest
+cd pixelrest
 ./install.sh
 ```
 
-The script builds a release binary, installs it to `~/.local/bin/pixelrest`
-and enables `pixelrest.service` (a systemd user unit). `./uninstall.sh`
-removes both. The config is created with defaults on first run.
-
-Logs: `journalctl --user -u pixelrest -f`
+This installs `~/.local/bin/pixelrest` and starts it now and at every login
+as a systemd user service. To remove it, run `./uninstall.sh`.
 
 ## Use
 
-The tray icon's dot shows the state: green means active, orange paused,
-blue waiting because media is playing.
+pixelrest lives in the system tray. Its dot is green when active, orange
+when paused, and blue while waiting for media to stop.
 
 * **Left click:** blank now
-* **Middle click:** toggle pause
-* **Right click:** menu (pause, idle timeout, blank/dim, monitors, media exceptions, night dimming)
+* **Middle click:** pause / resume
+* **Right click:** settings menu
 
-Any key, click or mouse movement wakes the screens. Input in the first
-`grace_ms` after blanking is ignored, so the click that triggered it doesn't
-wake it straight away.
+Any key, click or mouse movement wakes the screens.
 
-CLI (talks to the running daemon over D-Bus):
+From a terminal:
 
 ```sh
 pixelrest status
@@ -67,13 +43,15 @@ pixelrest toggle-pause | pause [MINUTES] | resume   # pause 0 = until resumed
 pixelrest reload | quit
 ```
 
-To make a global shortcut (like the old Super+B): System Settings →
-Keyboard → Shortcuts → Add New → Command → `pixelrest toggle-pause`.
+For a pause shortcut: System Settings → Keyboard → Shortcuts → Add New →
+Command → `pixelrest toggle-pause`.
 
-## Config
+Logs: `journalctl --user -u pixelrest -f`
 
-`~/.config/pixelrest/config.toml`. The tray menu also edits this file.
-Reload it with `pixelrest reload` or `systemctl --user reload-or-restart pixelrest`.
+## Configure
+
+Settings live in `~/.config/pixelrest/config.toml`. The tray menu edits the
+same file. After editing it by hand, run `pixelrest reload`.
 
 ```toml
 timeout_seconds = 120
@@ -81,7 +59,7 @@ idle_action = "blank"      # or "dim"
 dim_brightness = 10
 monitors = []              # e.g. ["DP-2"]; empty = all
 pause_minutes = 30
-grace_ms = 750
+grace_ms = 750             # ignore input right after blanking
 
 [inhibit]                  # don't act while...
 powerdevil = true          # an app inhibits the screensaver (browsers playing video, etc.)
@@ -97,20 +75,11 @@ end = "07:00"
 brightness = 20
 ```
 
-Apps that use the Wayland idle-inhibit protocol (mpv, games via SDL, …)
-always prevent blanking, because KWin doesn't report you as idle while
-they're active.
+## More
 
-## How it works
-
-* `src/app.rs` holds the Wayland state, the overlays per `wl_output`, the
-  idle notifications and the state machine.
-* `src/media.rs` runs the PowerDevil, MPRIS and PipeWire checks on a worker
-  thread.
-* `src/brightness.rs` drives `kscreen-doctor` and keeps the saved brightness
-  in `~/.local/state/pixelrest/brightness.json`.
-* `src/tray.rs` is the StatusNotifierItem tray (via `ksni`, no Qt or GTK).
-* `src/ipc.rs` is the `dev.ricardogzm.PixelRest` session-bus interface.
+* [Why a rewrite](docs/why-a-rewrite.md): what was wrong with the original
+  and what changed
+* [How it works](docs/how-it-works.md): code layout and inhibitor handling
 
 ## License
 
