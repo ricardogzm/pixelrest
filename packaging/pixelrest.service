@@ -1,0 +1,15 @@
+[Unit]
+Description=pixelrest (OLED burn-in protection)
+PartOf=graphical-session.target
+After=graphical-session.target
+StartLimitIntervalSec=120
+StartLimitBurst=10
+
+[Service]
+ExecStart=%h/.local/bin/pixelrest run
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

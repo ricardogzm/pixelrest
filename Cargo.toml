@@ -1,0 +1,27 @@
+[package]
+name = "pixelrest"
+version = "0.1.0"
+edition = "2024"
+description = "OLED burn-in protection for KDE Plasma on Wayland"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+anyhow = "1.0.104"
+calloop = { version = "0.14", features = ["signals"] }
+chrono = "0.4.45"
+clap = { version = "4.6.7", features = ["derive"] }
+env_logger = { version = "0.11.11", default-features = false, features = ["auto-color", "humantime"] }
+ksni = { version = "0.3", default-features = false, features = ["blocking", "async-io"] }
+log = "0.4.34"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+smithay-client-toolkit = { version = "0.21", default-features = false, features = ["calloop"] }
+toml = "1.1.8"
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["staging", "client"] }
+zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1
